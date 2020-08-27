@@ -13,23 +13,24 @@ bool check_input(string str){
 	return true;
 }
 
-int main(){
-	int n;
-	string str;
-	while(true){
-		getline(cin, str);
-		if(str == "") break;
-		if(!check_input(str)) {
-			cout << "Invalid value" << '\n';
-			continue;
-		}
-		if(stoll(str) > INT_MAX){
-			cout << "Value out of range" << '\n';
-			continue;
-		}
-		n = stoi(str);
-		break;
+int main(int argc, char * argv[]){
+	if(argc == 1){
+		cerr << "No arguments were entered" << '\n';
+		cout << '\n';
+		return 0;
 	}
+	string str = argv[1];
+	if(!check_input(str)) {
+		cerr << "Invalid value" << '\n';
+		cout << '\n';
+		return 0;
+	}
+	if(stoll(str) > INT_MAX){
+		cerr << "Value out of range" << '\n';
+		cout << '\n';
+		return 0;
+	}
+	int n = stoi(str);
 	for(int i = 1; i <= n; i++){
 		cout << i << '\n';
 	}

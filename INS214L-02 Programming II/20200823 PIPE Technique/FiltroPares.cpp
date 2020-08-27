@@ -20,11 +20,11 @@ int main(){
 		getline(cin, str);
 		if(str == "") break;
 		if(!check_input(str)) {
-			cout << "Invalid value" << '\n';
+			cerr << "Invalid value" << '\n';
 			continue;
 		}
 		if(stoll(str) > INT_MAX){
-			cout << "Value out of range" << '\n';
+			cerr << "Value out of range" << '\n';
 			continue;
 		}
 		n = stoi(str);
