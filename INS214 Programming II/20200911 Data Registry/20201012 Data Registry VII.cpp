@@ -3,10 +3,12 @@
 #include <string>
 #include <vector>
 #include <conio.h>
+#include <math.h>
 
 using namespace std;
 
 const int data_quantity = 9;
+const int letter_quantity = 26;
 const string header = "Cedula,Nombre,Apellido,Monto,Password,DatosCodificados";
 const string fields [9] = {"Cedula", "Nombre", "Apellido", "Edad", "Sexo (H|M)", "Estado Civil (S|C)", "Grado Academico (I|M|G|P)", "Monto", "Password"};
 
@@ -14,20 +16,16 @@ enum DataFields {
     ID = 0, NAME = 1, LAST_NAME = 2, AGE = 3, SEX = 4, CIVIL_STATUS = 5, ACADEMIC_GRADE = 6, AMOUNT = 7, PASSWORD = 8
 };
 
-struct person{
-    vector<string> data;
-    void initialize(){
-        data = vector<string> (9, ""); 
-    }
-};
-
 struct personal_data{
 	int age;
 	char sex, cs, ag;
 };
 
+string path;
+
 class Person{
 	private:
+	int order = -1;
 	vector<string> data = vector<string> (9, "");	
 	
 	int encodeData(int age, char sex, char cs, char ag){
@@ -70,8 +68,16 @@ class Person{
 		return this->data[ID] == p.data[ID];
 	}	
 	
-	bool operator == (string str) const {
-		return this->data[ID] == str;
+	bool operator <= (Person p) const {
+		return this->data[ID] <= p.data[ID];
+	}	
+	
+	bool operator < (Person p) const {
+		return this->data[ID] < p.data[ID];
+	}	
+
+	bool operator > (Person p) const {
+		return this->data[ID] > p.data[ID];
 	}
 
 	//Constructors
@@ -97,8 +103,9 @@ class Person{
 		line += to_string(encodeData(stoi(this->data[AGE]), this->data[SEX][0], this->data[CIVIL_STATUS][0], this->data[ACADEMIC_GRADE][0]));
 		return line;
 	}
+    int getOrder(){	return order;	}
 
-	int getId(){    return stoi(data[ID]);  }
+    int getId(){    return stoi(data[ID]);  }
 
     string getName(){   return data[NAME];  }
 
@@ -106,7 +113,7 @@ class Person{
 
     int getAge(){    return stoi(data[AGE]);   }    
 
-	char getSex(){  return data[SEX][0];    }
+    char getSex(){  return data[SEX][0];    }
 
     char getCivilStatus() { return data[CIVIL_STATUS][0]; }
 
@@ -142,7 +149,11 @@ class Person{
     		}
 	}	
 
+    void setOrder(int order){	this->order = order; }
+
     void setId(int id){    data[ID] = to_string(id);  }
+
+    void setId(string id){    data[ID] = id;  }
 
     void setName(string name){   data[NAME] = name;  }
 
@@ -150,7 +161,7 @@ class Person{
 
     void setAge(int age){    data[AGE] = to_string(age);   }    
 
-	void setSex(char sex){  data[SEX] = sex;    }
+    void setSex(char sex){  data[SEX] = sex;    }
 
     void setCivilStatus(char civil_status) { data[CIVIL_STATUS] = civil_status; }
 
@@ -161,6 +172,11 @@ class Person{
     void setPassword(string password){   data[PASSWORD] = password;  }
     
 	//Methods      
+	
+	int hashcode(){
+		return (int)(tolower(getLastName()[0]));
+	}
+	
     static string readSpecialInput(int length = 1024, string valid_characters = "", string input_type = "normal"){
         bool loop = true, point = false;
         int decimal_numbers = 0;
@@ -223,7 +239,7 @@ class Person{
                     break;
                 case NAME:
                 case LAST_NAME:
-                    temp_data[i] = readSpecialInput();
+                    temp_data[i] = readSpecialInput(1024, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz ");
                     break;
                 case AGE:
                     temp_data[i] = readSpecialInput(3, "1234567890");
@@ -277,57 +293,209 @@ class Person{
 	}
 };
 
-string path;
-vector<Person> p;
+class Registry{
+	private:
+	int person_quantity = 0;
+	int people_counter = 0;
+	int bucket_sizes[letter_quantity];
+	int bucket_elements[letter_quantity];
+	Person * registry[letter_quantity];
+	double buffer_increase = 1.5;
+	
+	void initialize(){
+		for(int i = 0; i < letter_quantity; i++){
+			bucket_sizes[i] = 1;
+			bucket_elements[i] = 0;
+			registry[i] = new Person[bucket_sizes[i]];
+		}
+	}
+
+	int getBucketId(Person p){
+		return p.hashcode() % letter_quantity;
+	}
+	
+	int searchBucket(int bucket_id, Person p){
+		//Binary Search
+		Person * bucket_contents = registry[bucket_id];
+		int mid, res = -1, lo = 0, hi = bucket_elements[bucket_id];
+		while(lo <= hi){
+			mid = (lo + hi) / 2;
+			if(p <= bucket_contents[mid]){
+				hi = mid - 1;
+				if(p == bucket_contents[mid]) return mid;
+			}
+			else {
+				lo = mid + 1;
+			}
+		}
+		return -1; 
+	}
+	
+	void sortBucket(int bucket_id){
+		for(int i = 0; i < bucket_elements[bucket_id] - 1; i++){
+			for(int j = 0; j < bucket_elements[bucket_id] - i - 1; j++){
+				if(registry[bucket_id][j] > registry[bucket_id][j + 1]){
+					Person temp = registry[bucket_id][j];
+					registry[bucket_id][j] = registry[bucket_id][j + 1];
+					registry[bucket_id][j + 1] = temp;
+				}
+			}
+		}
+	}
+
+	void expandBucket(int bucket_id){
+		int new_size = ceil((double)bucket_sizes[bucket_id] * buffer_increase);
+		bucket_sizes[bucket_id] = new_size;
+		Person * new_bucket = new Person[new_size];
+		
+		for(int i = 0; i < bucket_elements[bucket_id]; i++)
+			new_bucket[i] = registry[bucket_id][i];
+
+		delete [] registry[bucket_id];
+		registry[bucket_id] = new_bucket;
+	}
+
+	public:
+	
+	Registry(){
+		initialize();
+	}
+
+	Registry(vector<Person> P){
+		setRegistry(P);		
+	}
+
+	vector<Person> getRegistry(){
+		vector<Person> P;
+		for(int i = 0; i < letter_quantity; i++){
+			for(int j = 0; j < bucket_elements[i]; j++){
+				P.push_back(registry[i][j]);
+			}
+		}
+		//Bubble Sort Vector<Person>
+		for(int i = 0; i < (int)P.size() - 1; i++){
+			for(int j = 0; j < (int)P.size() - i - 1; j++){
+				if(P[j].getOrder() > P[j + 1].getOrder()){
+					Person temp = P[j];
+					P[j] = P[j + 1];
+					P[j + 1] = temp;
+				}
+			}
+		}
+		return P;
+	}
+
+	void setRegistry(vector<Person> P){
+		initialize();
+		for(int i = 0; i < P.size(); i++){
+			addPerson(P[i]);
+		}
+	}	
+
+	Person getPerson(string id, string last_name){
+		Person p;
+		p.setId(id);
+		p.setLastName(last_name);
+		int bucket_id = getBucketId(p);
+		int element_id = searchBucket(bucket_id, p);
+		if(element_id == -1) return Person();
+		return registry[bucket_id][element_id];
+	}
+	
+	bool findPerson(Person p){
+		int bucket_id = getBucketId(p);
+		if(searchBucket(bucket_id, p) != -1) return true;
+		return false;
+	}
+
+	bool addPerson(Person p, bool give_order = true){
+		int bucket_id = getBucketId(p);
+		if(findPerson(p)) return false;		//Duplicate exists
+		registry[bucket_id][bucket_elements[bucket_id]] = p;
+		if(give_order)registry[bucket_id][bucket_elements[bucket_id]].setOrder(people_counter++);
+		sortBucket(bucket_id);
+		bucket_elements[bucket_id]++;
+		if(bucket_elements[bucket_id] == bucket_sizes[bucket_id]) expandBucket(bucket_id);
+		person_quantity++;
+		return true;				//Succesful add
+	}
+
+	bool removePerson(Person p){
+		int bucket_id = getBucketId(p);
+		if(!findPerson(p)) return false;		//Person does not exist
+		int element_id = searchBucket(bucket_id, p);
+		for(int i = element_id; i < bucket_elements[bucket_id] - 1; i++){
+			registry[bucket_id][i] = registry[bucket_id][i + 1]; 
+		}
+		registry[bucket_id][bucket_elements[bucket_id] - 1] = Person();
+		bucket_elements[bucket_id]--;
+		person_quantity--;
+		return true;
+	}
+
+	bool editPerson(Person pold, Person pnew){
+		if(!findPerson(pold)) return false;	//Person does not exist
+		removePerson(pold);
+		addPerson(pnew, false);
+		return true;
+	}		
+};
+
+class FileIO{
+	private:
+
+	public:
+
+	static vector<Person> loadCSV(){
+   		string line;
+		vector<Person> P;
+    		ifstream fin(path);
+    		//File validation
+    		getline(fin, line);
+    		if(line != header) return vector<Person> (0);
+    		//File read
+   		while(!fin.eof()){
+       			getline(fin, line);
+       			P.push_back(line);
+    		}
+		return P;
+	}
+
+	static void saveCSV(Registry R){
+		vector<Person> P = R.getRegistry();
+		ofstream fout(path);
+   		fout << header;
+    		for(int i = 0; i < P.size(); i++){
+        		fout << '\n';
+			fout << P[i].getData();
+    		}
+	}
+};
+
+Registry R;
 
 void consoleClear(){
 	cout << flush;
 	system("CLS");
 }
 
-void loadData(){
-    string line;
-    ifstream fin(path);
-    //File validation
-    getline(fin, line);
-    if(line != header) return;
-    //File read
-    while(!fin.eof()){
-        getline(fin, line);
-       	p.push_back(line);
-    }
+Person searchPerson(){
+        cout << "Introduzca la cedula a buscar: ";
+        string id = Person::readSpecialInput(11, "1234567890");
+	cout << "Introduzca la primera letra de su apellido: ";
+	string last_name_first_letter = Person::readSpecialInput(1, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+	Person p = R.getPerson(id, last_name_first_letter);
+	if(p == Person()) {
+		cout << "No se encontro ninguna persona." << '\n';
+	}
+	else {
+		cout << "Se encontro una persona: " << '\n';
+		p.printData(); 
+	}
+	return p;
 }
 
-void saveData(){
-    ofstream fout(path);
-    fout << header << '\n';
-    for(int i = 0; i < (int)p.size(); i++){
-        if(i > 0) fout << '\n';
-	fout << p[i].getData();
-    }
-}
-
-int searchDataRow(string id){
-    for(int i = 0; i < (int)p.size(); i++){
-        if(p[i] == id) return i; //ID was found
-    }
-    return -1;  //ID was not found
-}
-
-int searchData(){
-    cout << "Introduzca la cedula a buscar: ";
-    string input = Person::readSpecialInput(11, "1234567890");
-    int row = searchDataRow(input);
-    if(row == -1) {
-        cout << "No se encontro a ninguna persona" << '\n';
-        return -1;
-    }
-    cout << "Se encontro la siguiente persona: " << '\n';
-    p[row].printData();
-    return row;
-}
-
-void addData(){
+void addPerson(){
     bool loop = true;
     while(loop){
         vector<string> temp = Person::readData();
@@ -337,41 +505,48 @@ void addData(){
             case 'C':
                 break;
             case 'G':
-                p.push_back(temp);
+                if(R.addPerson(Person(temp))) cout << "Operacion exitosa." << '\n';
+		else cout << "Operación fallida: Duplicado encontrado." << '\n';
                 break;
             case 'S':
                 loop = false;
                 break;
             case 'X':
                 loop = false;
-                p.push_back(temp);
+                if(R.addPerson(Person(temp))) cout << "Operacion exitosa." << '\n';
+		else cout << "Operación fallida: Duplicado encontrado." << '\n';
                 break;
         }
     }
 }
 
-void editData(){
-    int row = searchData();
-    if(row == -1) return;
-    p[row].editData();
+void editPerson(){
+	Person p1 = searchPerson();
+	if(p1 == Person()) return;
+	Person p2 = p1;
+	p2.setData(Person::readData({ID, PASSWORD}));
+	if(R.editPerson(p1, p2)) cout << "Operacion exitosa." << '\n';
+	else cout << "No se ha encontrado a la persona." << '\n';
 }
 
-void listData(){
-    for(int i = 0; i < (int)p.size(); i++){
-        p[i].printData();
-    }
+void listPeople(){
+	vector<Person> P = R.getRegistry();
+	for(int i = 0; i < P.size(); i++){
+		P[i].printData();
+	}
 }
 
-void deleteData(){
-    int row = searchData();
-    if(row == -1) return;
-    p.erase(p.begin() + row);
+void deletePerson(){
+	Person p = searchPerson();
+	if(p == Person()) return;
+	if(R.removePerson(p)) cout << "Operacion exitosa." << '\n';
+	else cout << "No se ha encontrado a la persona." << '\n';
 }
 
 void menu(){
     while(true){
         consoleClear();
-        cout << "Registro de Datos V" << '\n' << '\n';
+        cout << "Registro de Datos VII" << '\n' << '\n';
         cout << "1 - Agregar Personas" << '\n';
         cout << "2 - Buscar Persona" << '\n';
         cout << "3 - Listar Personas" << '\n';
@@ -382,19 +557,19 @@ void menu(){
         char input = Person::readSpecialInput(1, "123456")[0];
         switch(input){
             case '1':
-                addData();
+                addPerson();
                 break;
             case '2':
-                searchData();
+                searchPerson();
                 break;
             case '3':
-                listData();
+                listPeople();
                 break;
             case '4':
-                deleteData();
+                deletePerson();
                 break;
             case '5':
-                editData();
+                editPerson();
                 break;
             case '6':
                 return;
@@ -410,7 +585,7 @@ int main(int argc, char * argv[]){
         return 1;
     }
     path = argv[1];
-    loadData();
+    R.setRegistry(FileIO::loadCSV());
     menu();
-    saveData();
+    FileIO::saveCSV(R);
 }
